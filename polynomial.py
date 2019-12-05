@@ -17,7 +17,7 @@ class PolynomialTerm:
     def __repr__(self):
         if self._coeff >=0:
             # if coefficient is 1 print only sign eg. + 1x -> +x
-            if self._coeff == 1:
+            if self._coeff == 1 and self._power > 0:
                 coeff = '+'
             else:
                 coeff = '+' + str(self._coeff)
@@ -52,8 +52,14 @@ class PolynomialTerm:
         return PolynomialTerm(coeff, power)
 
     def __mul__(self,other):
-        coeff = self._coeff * other._coeff
-        power = self._power + other._power
+        if type(other) in [type(1),type(1.0)]:
+            coeff = self._coeff *other
+            power = self._power
+        elif type(other) == type(self):
+            coeff = self._coeff * other._coeff
+            power = self._power + other._power
+        else:
+            raise ValueError('Polynomial can only be multiplied by Polynomial or numeric types')
         return PolynomialTerm(coeff, power)
     def __gt__(self, other):
         return self._power > other._power
@@ -63,7 +69,7 @@ class PolynomialTerm:
         return self._coeff == other._coeff and self._power == other._power
     def __neq__(self, other):
         return self._coeff != other._coeff or self._power != other._power
-    def eval(self, value):
+    def __call__(self, value):
         return self._coeff*value**self._power
     def derivative(self):
         if self._power == 0:
@@ -107,16 +113,20 @@ class PolynomialTerm:
 
         
 class Polynomial(PolynomialTerm):
-    def __init__(self, s):
-        raw_terms = []
-        for term in self._split_into_terms(s):
-            raw_terms.append(PolynomialTerm(term))
-        self._terms = self._shrink_terms(raw_terms)
+    def __init__(self, s=None):
+        if s is None:
+            self._terms = [PolynomialTerm()]
+        else:
+            raw_terms = []
+            for term in self._split_into_terms(s):
+                raw_terms.append(PolynomialTerm(term))
+            self._terms = self._shrink_terms(raw_terms)
         
     def __repr__(self):
         poly_string = ''
         for term in self._terms:
-            poly_string += repr(term) + ' '
+            if term._coeff !=0:
+                poly_string += repr(term) + ' '
         return poly_string
 
     def __len__(self):
@@ -124,41 +134,74 @@ class Polynomial(PolynomialTerm):
     def __getitem__(self, index):
         return self._terms[index]
     def __add__(self, other):
-        # fill in the gaps in both polynomials i.e (x2 - 1) -> (x2 +0x -1)
-        self._middle_pad()
-        other._middle_pad()
-        # both polynomials might not be of the same order so pad the lower order one up to the higher order one
-        if self < other:
-            self._left_pad_to_power(other.order())
-        elif self > other:
-            other._left_pad_to_power(self.order())
-        self_least_power = self.least_non_zero_power()
-        other_least_power = other.least_non_zero_power()
-
-        # if they have different least powers pad the higher least power one down to the lower least power one
-        if self_least_power > other_least_power:
-            self._right_pad_to_power(other_least_power)
-
-        elif self_least_power < other_least_power:
-            other._right_pad_to_power(self_least_power)
-
+        self,other = self._conform(other)
         poly_string = ''
         for term_self, term_other in zip(self, other):
             poly_string += repr(term_self + term_other)
         return Polynomial(poly_string)
-
-    def __mul__(self, other):
+    def __radd__(self, other):
+        self,other = self._conform(other)
         poly_string = ''
-        for self_term in self:
-            for other_term in other:
-                poly_string += repr(self_term * other_term)
+        for term_self, term_other in zip(self, other):
+            poly_string += repr(term_self + term_other)
         return Polynomial(poly_string)
+    def __sub__(self, other):
+        self,other = self._conform(other)
+        poly_string = ''
+        for term_self, term_other in zip(self, other):
+            poly_string += repr(term_self - term_other)
+        return Polynomial(poly_string)
+    def __rsub__(self, other):
+        self,other = self._conform(other)
+        poly_string = ''
+        for term_self, term_other in zip(self, other):
+            poly_string += repr(term_self - term_other)
+        return Polynomial(poly_string)
+    def __neg__(self):
+        return Polynomial() - self
+    def __mul__(self, other):
+        if type(other) in [type(1), type(1.0)]:
+            poly_string = ''
+            for term in self._terms:
+                poly_string += repr(term*other)
+        elif type(other) == type(self):
+            poly_string = ''
+            for self_term in self:
+                for other_term in other:
+                    poly_string += repr(self_term * other_term)
+        else:
+            raise ValueError('Polynomial can only be multiplied by Polynomial or numeric types')
+        return Polynomial(poly_string)
+    def __rmul__(self, other):
+        if type(other) in [type(1), type(1.0)]:
+            poly_string = ''
+            for term in self._terms:
+                poly_string += repr(term*other)
+        elif type(other) == type(self):
+            poly_string = ''
+            for self_term in self:
+                for other_term in other:
+                    poly_string += repr(self_term * other_term)
+        else:
+            raise ValueError('Polynomial can only be multiplied by Polynomial or numeric types')
+        return Polynomial(poly_string)
+    def __pow__(self, value):
+        poly = self
+        for _ in range(value-1):
+            poly *= self
+        return poly
 
-        
     def __gt__(self, other):
         return True if self.order() > other.order() else False
     def __lt__(self, other):
         return True if self.order() < other.order() else False
+    def __call__(self, value):
+        """ Evaluates a polynomial with the given value """
+        sum =0
+        for term in self:
+            sum+= term(value)
+        return sum
+
     
     #public methods
     def order(self):
@@ -166,13 +209,6 @@ class Polynomial(PolynomialTerm):
         return self._terms[0]._power
     def least_non_zero_power(self):
         return self._terms[len(self._terms)-1]._power
-    def eval(self, value):
-        """ Evaluates a polynomial with the given value """
-        sum =0
-        for term in self:
-            sum+= term.eval(value)
-        return sum
-
     def derivative(self):
         """ Returns the first order derivative of the polynomial """
         poly_string = ''
@@ -239,6 +275,32 @@ class Polynomial(PolynomialTerm):
                 if sum._coeff != 0:
                     shrunk_terms.append(sum)
         return shrunk_terms
+    def _conform(self, other):
+        if type(other) in [type(1), type(1.0)]:
+            other = Polynomial(str(other)+'x0')
+        self, other = self._match_polynomials(self, other)
+        return self, other
+
+    @staticmethod
+    def _match_polynomials(p1, p2):
+        # fill in the gaps in both polynomials i.e (x2 - 1) -> (x2 +0x -1)
+        p1._middle_pad()
+        p2._middle_pad()
+        # both polynomials might not be of the same order so pad the lower order one up to the higher order one
+        if p1 < p2:
+            p1._left_pad_to_power(p2.order())
+        elif p1 > p2:
+            p2._left_pad_to_power(p1.order())
+        p1_least_power = p1.least_non_zero_power()
+        p2_least_power = p2.least_non_zero_power()
+
+        # if they have different least powers pad the higher least power one down to the lower least power one
+        if p1_least_power > p2_least_power:
+            p1._right_pad_to_power(p2_least_power)
+
+        elif p1_least_power <p2_least_power:
+            p2._right_pad_to_power(p1_least_power)
+        return p1,p2
 
     def _left_pad_to_power(self,n):
         poly_order = self.order()
@@ -258,13 +320,18 @@ class Polynomial(PolynomialTerm):
         least_power = int(self.least_non_zero_power())
         i = 1
         while order > least_power:
-            order -= 1.0
+            order -= 1
             if self[i]._power != order:
                 self._terms.insert(i, PolynomialTerm(0, order))
             i+=1
 
 
 
+
+
+p = Polynomial('x-1')
+p1 = Polynomial('-7x3-2x')
+print(10+3*p -11-p1**2)
 
 
 
