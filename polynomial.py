@@ -329,9 +329,7 @@ class Polynomial(PolynomialTerm):
 
 
 
-p = Polynomial('x-1')
-p1 = Polynomial('-7x3-2x')
-print(10+3*p -11-p1**2)
+
 
 
 
