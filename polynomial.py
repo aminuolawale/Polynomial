@@ -77,6 +77,10 @@ class PolynomialTerm:
         coeff = self._power * self._coeff
         power = self._power - 1
         return PolynomialTerm(coeff, power)
+    def integral(self):
+        power = self._power + 1
+        coeff = self._coeff/power
+        return PolynomialTerm(coeff, power)
 
         
     # utility modifiers
@@ -223,6 +227,11 @@ class Polynomial(PolynomialTerm):
             d_poly = poly.derivative()
             poly = d_poly
         return poly
+    def integral(self):
+        poly_string = ''
+        for term in self:
+            poly_string += repr(term.integral())
+        return Polynomial(poly_string)
     # utility modifiers
     def _split_into_terms(self, s):
         # split Polynomial into individual polynomial terms
@@ -325,7 +334,9 @@ class Polynomial(PolynomialTerm):
                 self._terms.insert(i, PolynomialTerm(0, order))
             i+=1
 
-
+if __name__ == '__main__':
+    p = Polynomial('2x2 -12x3 -x7')
+    print(p.integral())
 
 
 
