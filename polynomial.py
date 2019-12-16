@@ -1,3 +1,132 @@
+class AlgebraicTerm:
+    NUMBERS = '+-0123456789'
+    def __init__(self,a = None,b = None):
+        if a is None and b is None:
+            self._number = 0
+            self._variable = '|'
+        elif a is not None and b is None:
+            self._number = ''
+            a = self._clean_up(a.lower())
+            for l in a:
+                if l in self.NUMBERS:
+                    self._number += l
+            self._variable = a[len(a)-1] if a[len(a)-1] not in self.NUMBERS else '|'
+        else:
+            self._number = a
+            self._variable = b
+
+    def __repr__(self):
+        number = str(self._number)
+        if number[0] not in '+-0':
+            number = '+{}'.format(number)
+        if self._variable !='|':
+            return '{}{}'.format(number, self._variable)
+        else:
+            return '{}'.format(number)
+
+    def __add__(self, other):
+        if self._variable == other._variable:
+            number = int(self._number) + int(other._number)
+            variable = self._variable
+        else:
+            raise ValueError('Can only add AlgebraicTerms of same variable')
+        return AlgebraicTerm(number, variable)
+    def __sub__(self, other):
+        if self._variable == other._variable:
+            number = int(self._number) - int(other._number)
+            variable = self._variable
+        else:
+            raise ValueError('Can only add AlgebraicTerms of same variable')
+        return AlgebraicTerm(number, variable)
+    def __mul__(self, other):
+        number = int(self._number) * other
+        variable = self. _variable
+        return AlgebraicTerm(number, variable)
+    def __rmul__(self, other):
+        number = int(self._number) * other
+        variable = self. _variable
+        return AlgebraicTerm(number, variable)
+    
+    @staticmethod
+    def _clean_up(s):
+        # removes extraneous terms e.g '^', ' '
+        new_s = ''
+        for l in s:
+            if l != ' ':
+                new_s += l
+        return new_s
+class AlgebraicExpression(AlgebraicTerm):
+    def __init__(self,s):
+        raw_terms = self._split_into_terms(s)
+        self._terms = []
+        for term in raw_terms:
+            self._terms.append(AlgebraicTerm(term))
+    def __repr__(self):
+        algebraic_string = ''
+        for term in self._terms:
+            algebraic_string += repr(term)
+        return algebraic_string
+    def __len__(self):
+        return len(self._terms)
+    def __getitem__(self, index):
+        return self._terms[index]
+    def __add__(self, other):
+        variables_list = set(self._get_variables_list()+ other._get_variables_list())
+        algebraic_string = ''
+        for variable in variables_list:
+            self_term = self._get_term_by_variable(variable)
+            other_term = other._get_term_by_variable(variable)
+            algebraic_string += repr(self_term + other_term)
+        return AlgebraicExpression(algebraic_string)
+    # do i really need this?
+    def __radd__(self, other):
+        variables_list = set(self._get_variables_list()+ other._get_variables_list())
+        algebraic_string = ''
+        for variable in variables_list:
+            self_term = self._get_term_by_variable(variable)
+            other_term = other._get_term_by_variable(variable)
+            algebraic_string += repr(self_term + other_term)
+        return AlgebraicExpression(algebraic_string)
+
+    def _get_variables_list(self):
+        variables_list = []
+        for term in self._terms:
+            if term._variable is None:
+                term._variable = '|'
+            variables_list.append(term._variable)
+        return variables_list
+    def _get_term_by_variable(self, variable):
+        for term in self._terms:
+            if term._variable == variable:
+                return term
+        return AlgebraicTerm(0,variable)
+
+
+
+
+
+
+
+
+    def _split_into_terms(self, s):
+        # split Polynomial into individual polynomial terms
+        terms = []
+        term = ''
+        for index,l in enumerate(s):
+            if index == len(s) -1:
+                term += l
+                terms.append(term)
+            if l in '+-' and index >0:
+                terms.append(term)
+                term = l
+            else:
+                term += l
+        for index,_ in enumerate(terms):
+            if terms[index][0] not in '+-':
+                terms[index] = '+' + terms[index]
+        return terms
+
+
 
 class PolynomialTerm:
     def __init__(self, a= None, b= None):
@@ -15,16 +144,20 @@ class PolynomialTerm:
             self._coeff, self._power = a, b
 
     def __repr__(self):
-        if self._coeff >=0:
-            # if coefficient is 1 print only sign eg. + 1x -> +x
-            if self._coeff == 1 and self._power > 0:
-                coeff = '+'
-            else:
-                coeff = '+' + str(self._coeff)
+        is_algebraic = False
+        try:
+            coeff = float(self._coeff)
+        except:
+            is_algebraic = True
+            coeff =self._coeff
+        if not is_algebraic:
+            if coeff >=0:
+                # if coefficient is 1 print only sign eg. + 1x -> +x
+                if coeff == 1:
+                    coeff = '+'
+                else:
+                    coeff = '+' + str(self._coeff)
         # negative coeffs
-        else:
-            coeff = self._coeff
-
         power = self._power
         if power == 0:
             # dsiplay only constant
@@ -40,14 +173,51 @@ class PolynomialTerm:
     def __add__(self, other):
         if not self._same_order(other):
             raise ValueError('Cannot add Polynomial terms of different orders')
-        coeff = self._coeff + other._coeff
+        # try to convert both coefficients to floats
+        self_coeff, other_coeff = self._attempt_conversion_to_float(other)
+        # if either one is a string, we concatenate them with delimiter '+
+        if type(self_coeff) == type('str') or type(other_coeff) ==type('str'):
+            # if both coefficients are negative, we factor out the minus sign
+            if self_coeff[0] == '-' and other_coeff[0] == '-':
+                self_coeff = self_coeff[1:]
+                other_coeff = other_coeff[1:]
+                coeff = '-({}+{})'.format(self_coeff, other_coeff)
+
+            else:
+                if self_coeff[0] == '+':
+                    self_coeff = self_coeff[1:]
+                coeff = '({}+{})'.format(self_coeff, other_coeff)
+            # clean up adjacent signs
+            coeff = coeff.replace('+-','-')
+            coeff = coeff.replace('++','+')
+        # if both coefficients are numerals
+        else:
+            coeff = float(self._coeff) + float(other._coeff)
         power = self._power
         return PolynomialTerm(coeff, power)
 
     def __sub__(self, other):
         if not self._same_order(other):
             raise ValueError('Cannot subtract Polynomial terms of different orders')
-        coeff = self._coeff - other._coeff
+        self_coeff, other_coeff = self._attempt_conversion_to_float(other)
+        # if either one is a string, we concatenate them with delimiter '+
+        if type(self_coeff) == type('char') or type(other_coeff) ==type('char'):
+            # if both coefficients are negative, we factor out the minus sign
+            if self_coeff[0] == '+' and other_coeff[0] == '+':
+                self_coeff = self_coeff[1:]
+                other_coeff = other_coeff[1:]
+                coeff = '+({}-{})'.format(self_coeff, other_coeff)
+
+            else:
+                if self_coeff[0] == '+':
+                    self_coeff = self_coeff[1:]
+                coeff = '+({}-{})'.format(self_coeff, other_coeff)
+            # clean up adjacent signs
+            coeff = coeff.replace('-+','-')
+            coeff = coeff.replace('--','+')
+        # if both coefficients are numerals
+        else:
+            coeff = self_coeff - other_coeff
         power = self._power
         return PolynomialTerm(coeff, power)
 
@@ -56,8 +226,9 @@ class PolynomialTerm:
             coeff = self._coeff *other
             power = self._power
         elif type(other) == type(self):
-            coeff = self._coeff * other._coeff
-            power = self._power + other._power
+            self_coeff, other_coeff = self._attempt_conversion_to_float(other)
+            coeff = self_coeff * other_coeff
+            power = int(self._power) + int(other._power)
         else:
             raise ValueError('Polynomial can only be multiplied by Polynomial or numeric types')
         return PolynomialTerm(coeff, power)
@@ -96,7 +267,7 @@ class PolynomialTerm:
         # constant term
         if not 'x' in s: 
             coeff, power  = s, 0
-            return float(coeff), int(power)
+            return coeff, power
         # other terms
         split_poly_term = s.split('x') # [coeff] [X] [power]
         coeff, power = split_poly_term[0], split_poly_term[1]
@@ -108,7 +279,18 @@ class PolynomialTerm:
             coeff = '-1'
         if power == '':
             power = '1'
-        return float(coeff), int(power)
+        return coeff, power
+    def _attempt_conversion_to_float(self,other):
+        # try to convert both coefficients to floats
+        try:
+            self_coeff = float(self._coeff)
+            other_coeff = float(other._coeff)
+        # failure means that one of them is a string so we retain the strings
+        except:
+            self_coeff = self._coeff
+            other_coeff = other._coeff
+        return self_coeff, other_coeff
+
 
 
     # checkers
@@ -335,8 +517,13 @@ class Polynomial(PolynomialTerm):
             i+=1
 
 if __name__ == '__main__':
-    p = Polynomial('2x2 -12x3 -x7')
-    print(p.integral())
+    # p = PolynomialTerm('-22x2')
+    # p1 = PolynomialTerm('-2cx2')
+    # print(p+p1)
+    a = 2
+    b = AlgebraicExpression('34e- 3d+34  -7n')
+    c = AlgebraicExpression('23e-6d    +6z')
+    print(b +c)
 
 
 
