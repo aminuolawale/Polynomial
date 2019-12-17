@@ -1,0 +1,19 @@
+16/12/2019
+Branches currently:
+Master 
+	overhaulForSymbolicEvaluation (created Algebraic -Term and -Expression cls)
+		incorporateAlgebraIntoPolynomial (incorporated them into Polynomial)
+so how is this second feature branch going to work?
+	Basically. i just set all the coefficients in the PolynomialTerm class
+	to algebraicEpressions. 
+	I have already implemented the logic for their evaluation
+	I dont think I will have to mess with the PolynomialClass unless maybe with
+	the __repr__
+Now I have done this already. I am just having a little problem with
+AlgebraicTerms that occur last in an algebraicExpression when i evaluate
+a derivative
+
+Now i have designed the algebraicEpression constructor to take AlgebraicTerms as argument
+so wherever I can pass an algebraicTerm instead of an algebraic_string, I should do so.
+I have solved the problem with the last term in al algebraicExpression
+	
